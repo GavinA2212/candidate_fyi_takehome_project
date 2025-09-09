@@ -71,7 +71,7 @@ This repository contains the implementation of the Candidate.fyi Takehome Projec
 
 ### Running Interview Tests
 ```bash
-make test      # Run interviews app tests
+make testinterviews      # Run interviews app tests
 ```
 
 ## Design Decisions
