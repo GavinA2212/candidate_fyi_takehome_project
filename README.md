@@ -87,7 +87,7 @@ Lastly I changed the generate_busy_blocks function to generate more complex busy
 Interviews architecture:
 I created a interviews django app to store all interview related models, views, urls, serializers and tests, aswell as a seed command to seed interview data
 
-The only view: InterviewAvailabilityView is quite complex, and includes a few helper function to isolate functionality. these helper functions would likely be placed in another location in a real production environment to keep the views file less verbose, but I kept them in the views file for ease of viewing given the nature of the project.
+The only view: InterviewAvailabilityView is quite complex, and includes a few helper functions to isolate functionality. these helper functions would likely be placed in another location in a real production environment to keep the views file less verbose, but I kept them in the views file for ease of viewing given the nature of the project.
 
 
 ### Data Models
