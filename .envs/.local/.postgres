@@ -1,0 +1,7 @@
+# PostgreSQL
+# ------------------------------------------------------------------------------
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=candidate_fyi_takehome_project
+POSTGRES_USER=cxGmdOEpvhKLKggQqfwWyAtzfKgwdxfd
+POSTGRES_PASSWORD=5FKEv818dm3IzE4PcNBpA2sv4sPCwUTtzTUK4M6kdZ3TJEjzyW8Dr8zAgPJAs0wL

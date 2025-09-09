@@ -1,0 +1,16 @@
+services:
+  docs:
+    image: candidate_fyi_takehome_project_local_docs
+    container_name: candidate_fyi_takehome_project_local_docs
+    build:
+      context: .
+      dockerfile: ./compose/local/docs/Dockerfile
+    env_file:
+      - ./.envs/.local/.django
+    volumes:
+      - ./docs:/docs:z
+      - ./config:/app/config:z
+      - ./candidate_fyi_takehome_project:/app/candidate_fyi_takehome_project:z
+    ports:
+      - '9000:9000'
+    command: /start-docs
