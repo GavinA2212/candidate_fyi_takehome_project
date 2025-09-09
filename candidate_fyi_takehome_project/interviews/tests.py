@@ -1,13 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
-from django.test import TestCase
 from rest_framework.test import APITestCase
 from rest_framework import status
 
 from candidate_fyi_takehome_project.interviews.models import InterviewTemplate, Interviewer
-
-from django.test import override_settings
 
 
 # -------------------------
@@ -38,6 +35,7 @@ class InterviewAvailabilityViewTests(APITestCase):
     def test_404_when_template_not_found(self):
         resp = self.client.get(api_url(999999))  # non-existent id
         self.assertEqual(resp.status_code, status.HTTP_404_NOT_FOUND)
+        # This one still returns {"error": "..."} from the view
         self.assertIn("error", resp.json())
 
     def test_400_when_end_before_start(self):
@@ -45,7 +43,12 @@ class InterviewAvailabilityViewTests(APITestCase):
         end = "2030-01-01T10:00:00Z"
         resp = self.client.get(api_url(self.template.id, f"start={start}&end={end}"))
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("error", resp.json())
+
+        errors = resp.json()
+        # Serializer-style field error: {"end": ["end must be after start"]}
+        self.assertIn("end", errors)
+        msgs = errors["end"] if isinstance(errors["end"], list) else [errors["end"]]
+        self.assertTrue(any("must be after start" in str(m).lower() for m in msgs))
 
     def test_400_when_invalid_hour_values(self):
         start = "2030-01-01T09:00:00Z"
@@ -118,7 +121,6 @@ class InterviewAvailabilityViewTests(APITestCase):
         self.assertEqual(data["durationMinutes"], 60)
         slots = data["availableSlots"]
 
-        # Expected 6 slots (see docstring)
         expected = [
             (day.replace(hour=11, minute=0), day.replace(hour=12, minute=0)),
             (day.replace(hour=11, minute=30), day.replace(hour=12, minute=30)),
@@ -130,7 +132,6 @@ class InterviewAvailabilityViewTests(APITestCase):
         expected_json = [{"start": z(s), "end": z(e)} for s, e in expected]
         self.assertEqual(slots, expected_json)
 
-        # Every start is on :00 or :30 and duration is exactly 60 minutes
         for s in slots:
             sd = datetime.fromisoformat(s["start"].replace("Z", "+00:00"))
             ed = datetime.fromisoformat(s["end"].replace("Z", "+00:00"))
@@ -138,7 +139,6 @@ class InterviewAvailabilityViewTests(APITestCase):
             self.assertEqual(sd.second, 0)
             self.assertEqual(ed - sd, timedelta(minutes=60))
 
-        # Interviewers list contains IDs and names pulled from mocked busy data
         self.assertTrue(any(i["name"] == "Alice" for i in data["interviewers"]))
         self.assertTrue(any(i["name"] == "Bob" for i in data["interviewers"]))
 
@@ -192,7 +192,6 @@ class InterviewAvailabilityViewTests(APITestCase):
         If client asks for start < now+24h, the view must push the first allowed
         slot start to >= ceil_to_half_hour(now+24h), and still align to :00/:30.
         """
-        # No busy times: fully free
         def busy_for(ids):
             return [
                 {"interviewerId": self.alice.id, "name": "Alice", "busy": []},
@@ -201,22 +200,17 @@ class InterviewAvailabilityViewTests(APITestCase):
         mock_busy.side_effect = busy_for
 
         now_utc = datetime.now(timezone.utc)
-        start = z(now_utc + timedelta(hours=1))          # within the next 24h
-        end = z(now_utc + timedelta(days=3))             # generous window
+        start = z(now_utc + timedelta(hours=1))
+        end = z(now_utc + timedelta(days=3))
 
-        # Make work hours permissive to avoid filtering side-effects
         resp = self.client.get(api_url(self.template.id, f"start={start}&end={end}&start_hour=0&end_hour=23"))
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         data = resp.json()
         slots = data["availableSlots"]
-
-        # There should be at least one slot in 3 days if fully free
         self.assertGreater(len(slots), 0)
 
-        # Compute the earliest allowed (24h rule + half-hour ceiling) the same way the view does
         earliest_allowed = now_utc + timedelta(hours=24)
 
-        # Helper: ceil to :00/:30 (same logic as view)
         def ceil_half_hour(dt):
             dt = dt.astimezone(timezone.utc)
             if dt.second or dt.microsecond:
@@ -230,7 +224,6 @@ class InterviewAvailabilityViewTests(APITestCase):
 
         min_allowed = ceil_half_hour(earliest_allowed)
 
-        # Verify all returned slots start >= min_allowed and on :00 or :30
         for s in slots:
             sd = datetime.fromisoformat(s["start"].replace("Z", "+00:00"))
             self.assertGreaterEqual(sd, min_allowed)
@@ -266,14 +259,11 @@ class InterviewAvailabilityViewTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
         slots = resp.json()["availableSlots"]
 
-        # Must exclude **all** overlapping slots
         self.assertNotIn({"start": z(day.replace(hour=10, minute=30)), "end": z(day.replace(hour=11, minute=30))}, slots)
         self.assertNotIn({"start": z(day.replace(hour=11, minute=0)),  "end": z(day.replace(hour=12, minute=0))}, slots)
         self.assertNotIn({"start": z(day.replace(hour=11, minute=30)), "end": z(day.replace(hour=12, minute=30))}, slots)
 
-        # Non-overlapping neighbors remain
         self.assertIn({"start": z(day.replace(hour=9,  minute=0)), "end": z(day.replace(hour=10, minute=0))}, slots)
         self.assertIn({"start": z(day.replace(hour=9,  minute=30)), "end": z(day.replace(hour=10, minute=30))}, slots)
         self.assertIn({"start": z(day.replace(hour=10, minute=0)), "end": z(day.replace(hour=11, minute=0))}, slots)
         self.assertIn({"start": z(day.replace(hour=12, minute=0)), "end": z(day.replace(hour=13, minute=0))}, slots)
-
